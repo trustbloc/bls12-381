@@ -120,13 +120,6 @@ func (e *fp6) neg(c, a *fe6) {
 	fp2.neg(&c[2], &a[2])
 }
 
-func (e *fp6) conjugate(c, a *fe6) {
-	fp2 := e.fp2
-	c[0].set(&a[0])
-	fp2.neg(&c[1], &a[1])
-	c[0].set(&a[2])
-}
-
 func (e *fp6) mul(c, a, b *fe6) {
 	fp2, t := e.fp2, e.t
 	fp2.mul(t[0], &a[0], &b[0])

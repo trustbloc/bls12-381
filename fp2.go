@@ -60,11 +60,6 @@ func (e *fp2) one() *fe2 {
 	return new(fe2).one()
 }
 
-func (e *fp2) fromMont(c, a *fe2) {
-	fromMont(&c[0], &a[0])
-	fromMont(&c[1], &a[1])
-}
-
 func (e *fp2) add(c, a, b *fe2) {
 	add(&c[0], &a[0], &b[0])
 	add(&c[1], &a[1], &b[1])
@@ -108,11 +103,6 @@ func (e *fp2) subAssign(c, a *fe2) {
 
 func (e *fp2) neg(c, a *fe2) {
 	neg(&c[0], &a[0])
-	neg(&c[1], &a[1])
-}
-
-func (e *fp2) conjugate(c, a *fe2) {
-	c[0].set(&a[0])
 	neg(&c[1], &a[1])
 }
 
