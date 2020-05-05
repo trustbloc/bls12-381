@@ -3,7 +3,6 @@ package bls12381
 import (
 	"bytes"
 	"crypto/rand"
-	"io/ioutil"
 	"math/big"
 	"testing"
 )
@@ -25,52 +24,7 @@ func (g *G1) rand() *PointG1 {
 }
 
 func TestG1Serialization(t *testing.T) {
-	var err error
 	g1 := NewG1()
-	zero := g1.Zero()
-	b0 := g1.ToUncompressed(zero)
-	p0, err := g1.FromUncompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g1.IsZero(p0) {
-		t.Fatalf("bad infinity serialization 1")
-	}
-	b0 = g1.ToCompressed(zero)
-	p0, err = g1.FromCompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g1.IsZero(p0) {
-		t.Fatalf("bad infinity serialization 2")
-	}
-	b0 = g1.ToBytes(zero)
-	p0, err = g1.FromBytes(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g1.IsZero(p0) {
-		t.Fatalf("bad infinity serialization 3")
-	}
-	for i := 0; i < fuz; i++ {
-		a := g1.rand()
-		uncompressed := g1.ToUncompressed(a)
-		b, err := g1.FromUncompressed(uncompressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g1.Equal(a, b) {
-			t.Fatalf("bad serialization 1")
-		}
-		compressed := g1.ToCompressed(b)
-		a, err = g1.FromCompressed(compressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g1.Equal(a, b) {
-			t.Fatalf("bad serialization 2")
-		}
-	}
 	for i := 0; i < fuz; i++ {
 		a := g1.rand()
 		uncompressed := g1.ToBytes(a)
@@ -201,54 +155,6 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		if !g.Equal(t0, t1) {
 			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
-	}
-}
-
-func TestZKCryptoVectorsG1UncompressedValid(t *testing.T) {
-	data, err := ioutil.ReadFile("tests/g1_uncompressed_valid_test_vectors.dat")
-	if err != nil {
-		panic(err)
-	}
-	g := NewG1()
-	p1 := g.Zero()
-	for i := 0; i < 1000; i++ {
-		vector := data[i*96 : (i+1)*96]
-		p2, err := g.FromUncompressed(vector)
-		if err != nil {
-			t.Fatal("decoing fails", err, i)
-		}
-		uncompressed := g.ToUncompressed(p2)
-		if !bytes.Equal(vector, uncompressed) {
-			t.Fatalf("bad serialization")
-		}
-		if !g.Equal(p1, p2) {
-			t.Fatalf("\nwant: %s\nhave: %s\n", p1, p2)
-		}
-		g.Add(p1, p1, &g1One)
-	}
-}
-
-func TestZKCryptoVectorsG1CompressedValid(t *testing.T) {
-	data, err := ioutil.ReadFile("tests/g1_compressed_valid_test_vectors.dat")
-	if err != nil {
-		panic(err)
-	}
-	g := NewG1()
-	p1 := g.Zero()
-	for i := 0; i < 1000; i++ {
-		vector := data[i*48 : (i+1)*48]
-		p2, err := g.FromCompressed(vector)
-		if err != nil {
-			t.Fatal("decoing fails", err, i)
-		}
-		compressed := g.ToCompressed(p2)
-		if !bytes.Equal(vector, compressed) {
-			t.Fatalf("bad serialization")
-		}
-		if !g.Equal(p1, p2) {
-			t.Fatalf("\nwant: %s\nhave: %s\n", p1, p2)
-		}
-		g.Add(p1, p1, &g1One)
 	}
 }
 
