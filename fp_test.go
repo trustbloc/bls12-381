@@ -850,8 +850,28 @@ func TestFp2Inversion(t *testing.T) {
 
 func TestFp2SquareRoot(t *testing.T) {
 	field := newFp2()
-	r := field.new()
-	if field.sqrt(r, nonResidue2) {
+	for z := 0; z < 1000; z++ {
+		zi := new(fe)
+		sub(zi, &modulus, &fe{uint64(z * z)})
+		// r = (-z*z, 0)
+		r := &fe2{*zi, fe{0}}
+		toMont(&r[0], &r[0])
+		toMont(&r[1], &r[1])
+		c := field.new()
+		// sqrt((-z*z, 0)) = (0, z)
+		if !field.sqrt(c, r) {
+			t.Fatal("z*z does have a square root")
+		}
+		e := &fe2{fe{uint64(0)}, fe{uint64(z)}}
+		toMont(&e[0], &e[0])
+		toMont(&e[1], &e[1])
+		field.square(e, e)
+		field.square(c, c)
+		if !e.equal(c) {
+			t.Fatal("square root failed")
+		}
+	}
+	if field.sqrt(field.new(), nonResidue2) {
 		t.Fatalf("non residue cannot have a sqrt")
 	}
 	for i := 0; i < fuz; i++ {
