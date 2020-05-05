@@ -38,7 +38,18 @@ func TestG2Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g2.Equal(a, b) {
-			t.Fatalf("bad serialization 3")
+			t.Fatalf("bad serialization from/to")
+		}
+	}
+	for i := 0; i < fuz; i++ {
+		a := g2.rand()
+		encoded := g2.EncodePoint(a)
+		b, err := g2.DecodePoint(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !g2.Equal(a, b) {
+			t.Fatalf("bad serialization encode/decode")
 		}
 	}
 }

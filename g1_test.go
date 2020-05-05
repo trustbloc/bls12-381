@@ -27,13 +27,24 @@ func TestG1Serialization(t *testing.T) {
 	g1 := NewG1()
 	for i := 0; i < fuz; i++ {
 		a := g1.rand()
-		uncompressed := g1.ToBytes(a)
-		b, err := g1.FromBytes(uncompressed)
+		buf := g1.ToBytes(a)
+		b, err := g1.FromBytes(buf)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatalf("bad serialization 3")
+			t.Fatalf("bad serialization from/to")
+		}
+	}
+	for i := 0; i < fuz; i++ {
+		a := g1.rand()
+		encoded := g1.EncodePoint(a)
+		b, err := g1.DecodePoint(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !g1.Equal(a, b) {
+			t.Fatalf("bad serialization encode/decode")
 		}
 	}
 }

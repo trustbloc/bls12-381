@@ -96,6 +96,27 @@ func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	return p, nil
 }
 
+// DecodePoint given encoded (x, y) coordinates in 128 bytes returns a valid G1 Point.
+func (g *G1) DecodePoint(in []byte) (*PointG1, error) {
+	if len(in) != 128 {
+		return nil, errors.New("invalid g1 point length")
+	}
+	pointBytes := make([]byte, 96)
+	// decode x
+	xBytes, err := decodeFieldElement(in[:64])
+	if err != nil {
+		return nil, err
+	}
+	// decode y
+	yBytes, err := decodeFieldElement(in[64:])
+	if err != nil {
+		return nil, err
+	}
+	copy(pointBytes[:48], xBytes)
+	copy(pointBytes[48:], yBytes)
+	return g.FromBytes(pointBytes)
+}
+
 // ToBytes serializes a point into bytes in uncompressed form.
 // ToBytes does not take zcash flags into account.
 // ToBytes returns (0, 0) if point is infinity.
@@ -107,6 +128,17 @@ func (g *G1) ToBytes(p *PointG1) []byte {
 	g.Affine(p)
 	copy(out[:48], toBytes(&p[0]))
 	copy(out[48:], toBytes(&p[1]))
+	return out
+}
+
+// EncodePoint encodes a point into 128 bytes.
+func (g *G1) EncodePoint(p *PointG1) []byte {
+	outRaw := g.ToBytes(p)
+	out := make([]byte, 128)
+	// encode x
+	copy(out[16:], outRaw[:48])
+	// encode y
+	copy(out[64+16:], outRaw[48:])
 	return out
 }
 
