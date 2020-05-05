@@ -14,7 +14,7 @@ func fromBytes(in []byte) (*fe, error) {
 	if !fe.isValid() {
 		return nil, errors.New("must be less than modulus")
 	}
-	mul(fe, fe, r2)
+	toMont(fe, fe)
 	return fe, nil
 }
 
@@ -23,7 +23,7 @@ func fromBig(in *big.Int) (*fe, error) {
 	if !fe.isValid() {
 		return nil, errors.New("invalid input string")
 	}
-	mul(fe, fe, r2)
+	toMont(fe, fe)
 	return fe, nil
 }
 
@@ -35,7 +35,7 @@ func fromString(in string) (*fe, error) {
 	if !fe.isValid() {
 		return nil, errors.New("invalid input string")
 	}
-	mul(fe, fe, r2)
+	toMont(fe, fe)
 	return fe, nil
 }
 
