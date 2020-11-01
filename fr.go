@@ -22,7 +22,7 @@ func (e *Fr) Rand(r io.Reader) (*Fr, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = e.setBig(bi)
+	_ = e.SetBig(bi)
 	return e, nil
 }
 
@@ -65,10 +65,10 @@ func (e *Fr) RedFromBytes(in []byte) *Fr {
 
 func (e *Fr) setBytes(in []byte) {
 	u := new(big.Int).SetBytes(in)
-	_ = e.setBig(u)
+	_ = e.SetBig(u)
 }
 
-func (e *Fr) setBig(in *big.Int) error {
+func (e *Fr) SetBig(in *big.Int) error {
 	zero := new(big.Int)
 	e.Zero()
 	c := in.Cmp(zero)
