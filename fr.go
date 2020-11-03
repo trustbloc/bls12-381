@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"math/big"
+	"math/bits"
 )
 
 const frByteSize = 32
@@ -145,7 +146,7 @@ func (e *Fr) Equal(e2 *Fr) bool {
 }
 
 func (e *Fr) Cmp(e1 *Fr) int {
-	for i := 4; i >= 0; i-- {
+	for i := 3; i >= 0; i-- {
 		if e[i] > e1[i] {
 			return 1
 		} else if e[i] < e1[i] {
@@ -173,11 +174,14 @@ func (e *Fr) div2() {
 	e[3] = e[3] >> 1
 }
 
-func (e *Fr) mul2() {
+func (e *Fr) mul2() uint64 {
+	res := e[3] >> 63
 	e[3] = e[3]<<1 | e[2]>>63
 	e[2] = e[2]<<1 | e[1]>>63
 	e[1] = e[1]<<1 | e[0]>>63
 	e[0] = e[0] << 1
+
+	return res
 }
 
 func (e *Fr) Bit(at int) bool {
@@ -244,4 +248,115 @@ func (e *Fr) Exp(a *Fr, ee *big.Int) {
 		}
 	}
 	e.Set(z)
+}
+
+func (e *Fr) isOdd() bool {
+	var mask uint64 = 1
+	return e[0]&mask != 0
+}
+
+func (e *Fr) isEven() bool {
+	var mask uint64 = 1
+	return e[0]&mask == 0
+}
+
+// AddNoCarry finds the value of 384-bit a + b and returns the
+// resulting 384-bit value.
+func (e *Fr) AddNoCarry(g *Fr) {
+	carry := uint64(0)
+	for i := 0; i < 4; i++ {
+		e[i], carry = AddWithCarry(e[i], g[i], carry)
+	}
+}
+
+// AddWithCarry finds the value a + b + carry and returns the
+// full 128-bit value in 2 64-bit integers.
+func AddWithCarry(a, b, carry uint64) (uint64, uint64) {
+	out, outCarry := bits.Add64(a, b, 0)
+	out, outCarry2 := bits.Add64(out, carry, 0)
+	return out, outCarry + outCarry2
+}
+
+// SubNoBorrow subtracts two FRReprs from another and does not handle
+// borrow.
+func (e *Fr) SubNoBorrow(g *Fr) {
+	borrow := uint64(0)
+	for i := 0; i < 4; i++ {
+		e[i], borrow = SubWithBorrow(e[i], g[i], borrow)
+	}
+}
+
+// SubWithBorrow finds the value a - b - borrow and returns the
+// result and the borrow.
+func SubWithBorrow(a, b, borrow uint64) (uint64, uint64) {
+	o, c := bits.Sub64(a, b, borrow)
+	return o, c
+}
+
+// SubAssign subtracts a field element from this one.
+func (e *Fr) SubAssign(other *Fr) {
+	if other.Cmp(e) > 0 {
+		e.AddNoCarry(RFieldModulus)
+	}
+	e.SubNoBorrow(other)
+}
+
+// RFieldModulus is the modulus of the R field.
+var RFieldModulus = &Fr{
+	18446744069414584321,
+	6034159408538082302,
+	3691218898639771653,
+	8353516859464449352,
+}
+
+// Inverse finds the inverse of the field element.
+func (e *Fr) Inverse() *Fr {
+	if e.IsZero() {
+		return nil
+	}
+	u := NewFr().Set(e)
+
+	v := NewFr().Set(RFieldModulus)
+	b := &Fr{ //R^2 % r.
+		14526898881837571181,
+		3129137299524312099,
+		419701826671360399,
+		524908885293268753,
+	}
+	c := NewFr().Zero()
+
+	one := &Fr{1, 0, 0, 0}
+	for u.Cmp(one) != 0 && v.Cmp(one) != 0 {
+		for u.isEven() {
+			u.div2()
+			if b.isEven() {
+				b.div2()
+			} else {
+				b.AddNoCarry(RFieldModulus)
+				b.div2()
+			}
+		}
+
+		for v.isEven() {
+			v.div2()
+			if c.isEven() {
+				c.div2()
+			} else {
+				c.AddNoCarry(RFieldModulus)
+				c.div2()
+			}
+		}
+
+		if u.Cmp(v) >= 0 {
+			u.SubNoBorrow(v)
+			b.SubAssign(c)
+		} else {
+			v.SubNoBorrow(u)
+			c.SubAssign(b)
+		}
+	}
+	if u.Equal(one) {
+		return b
+	}
+	return c
 }
