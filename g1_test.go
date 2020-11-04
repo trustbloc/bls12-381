@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"testing"
 )
 
 func (g *G1) one() *PointG1 {
-	one, _ := g.fromBytesUnchecked(fromHex(48,
+	one, _ := g.fromBytesUnchecked(fromHex(fpByteSize,
 		"0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb",
 		"0x08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1",
 	))
@@ -18,11 +19,11 @@ func (g *G1) one() *PointG1 {
 }
 
 func (g *G1) rand() *PointG1 {
-	k, err := rand.Int(rand.Reader, q)
+	k, err := rand.Int(rand.Reader, qBig)
 	if err != nil {
 		panic(err)
 	}
-	return g.MulScalar(&PointG1{}, g.one(), k)
+	return g.MulScalarBig(&PointG1{}, g.one(), k)
 }
 
 func TestG1Serialization(t *testing.T) {
@@ -35,7 +36,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 1")
+		t.Fatal("infinity serialization failed")
 	}
 	b0 = g1.ToCompressed(zero)
 	p0, err = g1.FromCompressed(b0)
@@ -43,7 +44,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 2")
+		t.Fatal("infinity serialization failed")
 	}
 	b0 = g1.ToBytes(zero)
 	p0, err = g1.FromBytes(b0)
@@ -51,7 +52,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 3")
+		t.Fatal("infinity serialization failed")
 	}
 	for i := 0; i < fuz; i++ {
 		a := g1.rand()
@@ -61,7 +62,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 1")
+			t.Fatal("serialization failed")
 		}
 		compressed := g1.ToCompressed(b)
 		a, err = g1.FromCompressed(compressed)
@@ -69,7 +70,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 2")
+			t.Fatal("serialization failed")
 		}
 	}
 	for i := 0; i < fuz; i++ {
@@ -80,7 +81,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 3")
+			t.Fatal("serialization failed")
 		}
 	}
 }
@@ -95,6 +96,26 @@ func TestG1IsOnCurve(t *testing.T) {
 	p := &PointG1{*one, *one, *one}
 	if g.IsOnCurve(p) {
 		t.Fatal("(1, 1) is not on curve")
+	}
+}
+
+func TestG1BatchAffine(t *testing.T) {
+	n := 20
+	g := NewG1()
+	points0 := make([]*PointG1, n)
+	points1 := make([]*PointG1, n)
+	for i := 0; i < n; i++ {
+		points0[i] = g.rand()
+		points1[i] = g.New().Set(points0[i])
+		if g.IsAffine(points0[i]) {
+			t.Fatal("expect non affine point")
+		}
+	}
+	g.AffineBatch(points0)
+	for i := 0; i < n; i++ {
+		if !g.Equal(points0[i], points1[i]) {
+			t.Fatal("batch affine failed")
+		}
 	}
 }
 
@@ -167,14 +188,79 @@ func TestG1AdditiveProperties(t *testing.T) {
 	}
 }
 
+func TestG1MixedAdd(t *testing.T) {
+	g := NewG1()
+	for i := 0; i < fuz; i++ {
+		a, b := g.rand(), g.rand()
+		if g.IsAffine(a) || g.IsAffine(b) {
+			t.Fatal("expect non affine points")
+		}
+		bAffine := g.New().Set(b)
+		g.Affine(bAffine)
+		r0, r1 := g.New(), g.New()
+		g.Add(r0, a, b)
+		g.AddMixed(r1, a, bAffine)
+		if !g.Equal(r0, r1) {
+			t.Fatal("mixed addition failed")
+		}
+		aAffine := g.New().Set(a)
+		g.Affine(aAffine)
+		g.AddMixed(r0, a, aAffine)
+		g.Double(r1, a)
+		if !g.Equal(r0, r1) {
+			t.Fatal("mixed addition must double where points are equal")
+		}
+	}
+}
+
+func TestG1MultiplicativePropertiesBig(t *testing.T) {
+	g := NewG1()
+	t0, t1 := g.New(), g.New()
+	zero := g.Zero()
+	for i := 0; i < fuz; i++ {
+		a := g.rand()
+		s1, s2, s3 := randScalar(qBig), randScalar(qBig), randScalar(qBig)
+		sone := big.NewInt(1)
+		g.MulScalarBig(t0, zero, s1)
+		if !g.Equal(t0, zero) {
+			t.Fatal(" 0 ^ s == 0")
+		}
+		g.MulScalarBig(t0, a, sone)
+		if !g.Equal(t0, a) {
+			t.Fatal(" a ^ 1 == a")
+		}
+		g.MulScalarBig(t0, zero, s1)
+		if !g.Equal(t0, zero) {
+			t.Fatal(" 0 ^ s == a")
+		}
+		g.MulScalarBig(t0, a, s1)
+		g.MulScalarBig(t0, t0, s2)
+		s3.Mul(s1, s2)
+		g.MulScalarBig(t1, a, s3)
+		if !g.Equal(t0, t1) {
+			t.Errorf(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+		}
+		g.MulScalarBig(t0, a, s1)
+		g.MulScalarBig(t1, a, s2)
+		g.Add(t0, t0, t1)
+		s3.Add(s1, s2)
+		g.MulScalarBig(t1, a, s3)
+		if !g.Equal(t0, t1) {
+			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+		}
+	}
+}
+
 func TestG1MultiplicativeProperties(t *testing.T) {
 	g := NewG1()
 	t0, t1 := g.New(), g.New()
 	zero := g.Zero()
 	for i := 0; i < fuz; i++ {
 		a := g.rand()
-		s1, s2, s3 := randScalar(q), randScalar(q), randScalar(q)
-		sone := big.NewInt(1)
+		s1, _ := new(Fr).Rand(rand.Reader)
+		s2, _ := new(Fr).Rand(rand.Reader)
+		s3, _ := new(Fr).Rand(rand.Reader)
+		sone := &Fr{1}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
 			t.Fatal(" 0 ^ s == 0")
@@ -192,7 +278,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		s3.Mul(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+			t.Fatal(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t1, a, s2)
@@ -200,7 +286,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		s3.Add(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+			t.Fatal(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -213,14 +299,14 @@ func TestZKCryptoVectorsG1UncompressedValid(t *testing.T) {
 	g := NewG1()
 	p1 := g.Zero()
 	for i := 0; i < 1000; i++ {
-		vector := data[i*96 : (i+1)*96]
+		vector := data[i*2*fpByteSize : (i+1)*2*fpByteSize]
 		p2, err := g.FromUncompressed(vector)
 		if err != nil {
 			t.Fatal("decoing fails", err, i)
 		}
 		uncompressed := g.ToUncompressed(p2)
 		if !bytes.Equal(vector, uncompressed) || !g.Equal(p1, p2) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 
 		g.Add(p1, p1, &g1One)
@@ -235,20 +321,20 @@ func TestZKCryptoVectorsG1CompressedValid(t *testing.T) {
 	g := NewG1()
 	p1 := g.Zero()
 	for i := 0; i < 1000; i++ {
-		vector := data[i*48 : (i+1)*48]
+		vector := data[i*fpByteSize : (i+1)*fpByteSize]
 		p2, err := g.FromCompressed(vector)
 		if err != nil {
 			t.Fatal("decoing fails", err, i)
 		}
 		compressed := g.ToCompressed(p2)
 		if !bytes.Equal(vector, compressed) || !g.Equal(p1, p2) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 		g.Add(p1, p1, &g1One)
 	}
 }
 
-func TestG1MultiExpExpected(t *testing.T) {
+func TestG1MultiExpBigExpected(t *testing.T) {
 	g := NewG1()
 	one := g.one()
 	var scalars [2]*big.Int
@@ -257,36 +343,78 @@ func TestG1MultiExpExpected(t *testing.T) {
 	scalars[1] = big.NewInt(3)
 	bases[0], bases[1] = new(PointG1).Set(one), new(PointG1).Set(one)
 	expected, result := g.New(), g.New()
-	g.MulScalar(expected, one, big.NewInt(5))
-	_, _ = g.MultiExp(result, bases[:], scalars[:])
+	g.MulScalarBig(expected, one, big.NewInt(5))
+	_, _ = g.MultiExpBig(result, bases[:], scalars[:])
 	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		t.Fatal("multi-exponentiation failed")
 	}
 }
 
-func TestG1MultiExpBatch(t *testing.T) {
+func TestG1MultiExpExpected(t *testing.T) {
 	g := NewG1()
 	one := g.one()
-	n := 1000
-	bases := make([]*PointG1, n)
-	scalars := make([]*big.Int, n)
-	// scalars: [s0,s1 ... s(n-1)]
-	// bases: [P0,P1,..P(n-1)] = [s(n-1)*G, s(n-2)*G ... s0*G]
-	for i, j := 0, n-1; i < n; i, j = i+1, j-1 {
-		scalars[j], _ = rand.Int(rand.Reader, big.NewInt(100000))
-		bases[i] = g.New()
-		g.MulScalar(bases[i], one, scalars[j])
-	}
-	// expected: s(n-1)*P0 + s(n-2)*P1 + s0*P(n-1)
-	expected, tmp := g.New(), g.New()
-	for i := 0; i < n; i++ {
-		g.MulScalar(tmp, bases[i], scalars[i])
-		g.Add(expected, expected, tmp)
-	}
-	result := g.New()
-	_, _ = g.MultiExp(result, bases, scalars)
+	var scalars [2]*Fr
+	var bases [2]*PointG1
+	scalars[0] = &Fr{2}
+	scalars[1] = &Fr{3}
+	bases[0], bases[1] = new(PointG1).Set(one), new(PointG1).Set(one)
+	expected, result := g.New(), g.New()
+	g.MulScalar(expected, one, &Fr{5})
+	_, _ = g.MultiExp(result, bases[:], scalars[:])
 	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		t.Fatal("multi-exponentiation failed")
+	}
+}
+
+func TestG1MultiExpBig(t *testing.T) {
+	g := NewG1()
+	for n := 1; n < 1024+1; n = n * 2 {
+		bases := make([]*PointG1, n)
+		scalars := make([]*big.Int, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = rand.Int(rand.Reader, qBig)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		expected, tmp := g.New(), g.New()
+		for i := 0; i < n; i++ {
+			g.MulScalarBig(tmp, bases[i], scalars[i])
+			g.Add(expected, expected, tmp)
+		}
+		result := g.New()
+		_, _ = g.MultiExpBig(result, bases, scalars)
+		if !g.Equal(expected, result) {
+			t.Fatal("multi-exponentiation failed")
+		}
+	}
+}
+
+func TestG1MultiExp(t *testing.T) {
+	g := NewG1()
+	for n := 1; n < 1024+1; n = n * 2 {
+		bases := make([]*PointG1, n)
+		scalars := make([]*Fr, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = new(Fr).Rand(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		expected, tmp := g.New(), g.New()
+		for i := 0; i < n; i++ {
+			g.MulScalar(tmp, bases[i], scalars[i])
+			g.Add(expected, expected, tmp)
+		}
+		result := g.New()
+		_, _ = g.MultiExp(result, bases, scalars)
+		if !g.Equal(expected, result) {
+			t.Fatal("multi-exponentiation failed")
+		}
 	}
 }
 
@@ -296,7 +424,7 @@ func TestG1MapToCurve(t *testing.T) {
 		expected []byte
 	}{
 		{
-			u: make([]byte, 48),
+			u: make([]byte, fpByteSize),
 			expected: fromHex(-1,
 				"11a9a0372b8f332d5c30de9ad14e50372a73fa4c45d5f2fa5097f2d6fb93bcac592f2e1711ac43db0519870c7d0ea415",
 				"092c0f994164a0719f51c24ba3788de240ff926b55f58c445116e8bc6a47cd63392fd4e8e22bdf9feaa96ee773222133",
@@ -443,7 +571,7 @@ func BenchmarkG1Add(t *testing.B) {
 	}
 }
 
-func BenchmarkG1Mul(t *testing.B) {
+func BenchmarkG1MulBig(t *testing.B) {
 	g1 := NewG1()
 	a, e, c := g1.rand(), q, PointG1{}
 	t.ResetTimer()
@@ -452,8 +580,102 @@ func BenchmarkG1Mul(t *testing.B) {
 	}
 }
 
+func BenchmarkG1Mul(t *testing.B) {
+	g1 := NewG1()
+	a, c := g1.rand(), PointG1{}
+	e, err := new(Fr).Rand(rand.Reader)
+	if err != nil {
+		t.Error(err)
+	}
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		g1.MulScalar(&c, a, e)
+	}
+}
+
+func BenchmarkG1MultiExpBig(t *testing.B) {
+	g := NewG1()
+	v := func(n int) ([]*PointG1, []*big.Int) {
+		bases := make([]*PointG1, n)
+		scalars := make([]*big.Int, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = rand.Int(rand.Reader, qBig)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		return bases, scalars
+	}
+	for _, i := range []int{2, 10, 100, 1000} {
+		t.Run(fmt.Sprint(i), func(t *testing.B) {
+			bases, scalars := v(i)
+			result := g.New()
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				_, _ = g.MultiExpBig(result, bases, scalars)
+			}
+		})
+	}
+}
+
+func BenchmarkG1MultiExp(t *testing.B) {
+	g := NewG1()
+	v := func(n int) ([]*PointG1, []*Fr) {
+		bases := make([]*PointG1, n)
+		scalars := make([]*Fr, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = new(Fr).Rand(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		return bases, scalars
+	}
+	for _, i := range []int{2, 10, 100, 1000} {
+		t.Run(fmt.Sprint(i), func(t *testing.B) {
+			bases, scalars := v(i)
+			result := g.New()
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				_, _ = g.MultiExp(result, bases, scalars)
+			}
+		})
+	}
+}
+
+func BenchmarkG1MultiExpAffine(t *testing.B) {
+	g := NewG1()
+	v := func(n int) ([]*PointG1, []*Fr) {
+		bases := make([]*PointG1, n)
+		scalars := make([]*Fr, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = new(Fr).Rand(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.Affine(g.rand())
+		}
+		return bases, scalars
+	}
+	for _, i := range []int{2, 10, 100, 1000} {
+		t.Run(fmt.Sprint(i), func(t *testing.B) {
+			bases, scalars := v(i)
+			result := g.New()
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				_, _ = g.MultiExp(result, bases, scalars)
+			}
+		})
+	}
+}
+
 func BenchmarkG1MapToCurve(t *testing.B) {
-	a := fromHex(48, "0x1234")
+	a := fromHex(fpByteSize, "0x1234")
 	g1 := NewG1()
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {

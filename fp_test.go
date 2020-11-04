@@ -9,16 +9,16 @@ import (
 
 func TestFpSerialization(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
-		in := make([]byte, 48)
+		in := make([]byte, fpByteSize)
 		fe, err := fromBytes(in)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !fe.isZero() {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 		if !bytes.Equal(in, toBytes(fe)) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 	})
 	t.Run("bytes", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestFpSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !a.equal(b) {
-				t.Fatal("bad serialization")
+				t.Fatal("serialization failed")
 			}
 		}
 	})
@@ -41,7 +41,7 @@ func TestFpSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !a.equal(b) {
-				t.Fatal("bad encoding or decoding")
+				t.Fatal("encoding or decoding failed")
 			}
 		}
 	})
@@ -53,7 +53,7 @@ func TestFpSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !a.equal(b) {
-				t.Fatal("bad encoding or decoding")
+				t.Fatal("encoding or decoding failed")
 			}
 		}
 	})
@@ -64,32 +64,32 @@ func TestFpAdditionCrossAgainstBigInt(t *testing.T) {
 		a, _ := new(fe).rand(rand.Reader)
 		b, _ := new(fe).rand(rand.Reader)
 		c := new(fe)
-		big_a := toBig(a)
-		big_b := toBig(b)
+		big_a := a.big()
+		big_b := b.big()
 		big_c := new(big.Int)
 		add(c, a, b)
-		out_1 := toBytes(c)
-		out_2 := padBytes(big_c.Add(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), 48)
+		out_1 := c.bytes()
+		out_2 := padBytes(big_c.Add(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied A")
+			t.Fatal("cross test against big.Int is failed A")
 		}
 		double(c, a)
-		out_1 = toBytes(c)
-		out_2 = padBytes(big_c.Add(big_a, big_a).Mod(big_c, modulus.big()).Bytes(), 48)
+		out_1 = c.bytes()
+		out_2 = padBytes(big_c.Add(big_a, big_a).Mod(big_c, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied B")
+			t.Fatal("cross test against big.Int is failed B")
 		}
 		sub(c, a, b)
-		out_1 = toBytes(c)
-		out_2 = padBytes(big_c.Sub(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), 48)
+		out_1 = c.bytes()
+		out_2 = padBytes(big_c.Sub(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied C")
+			t.Fatal("cross test against big.Int is failed C")
 		}
 		neg(c, a)
-		out_1 = toBytes(c)
-		out_2 = padBytes(big_c.Neg(big_a).Mod(big_c, modulus.big()).Bytes(), 48)
+		out_1 = c.bytes()
+		out_2 = padBytes(big_c.Neg(big_a).Mod(big_c, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied D")
+			t.Fatal("cross test against big.Int is failed D")
 		}
 	}
 }
@@ -98,29 +98,29 @@ func TestFpAdditionCrossAgainstBigIntAssigned(t *testing.T) {
 	for i := 0; i < fuz; i++ {
 		a, _ := new(fe).rand(rand.Reader)
 		b, _ := new(fe).rand(rand.Reader)
-		big_a, big_b := toBig(a), toBig(b)
+		big_a, big_b := a.big(), b.big()
 		addAssign(a, b)
-		out_1 := toBytes(a)
-		out_2 := padBytes(big_a.Add(big_a, big_b).Mod(big_a, modulus.big()).Bytes(), 48)
+		out_1 := a.bytes()
+		out_2 := padBytes(big_a.Add(big_a, big_b).Mod(big_a, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied A")
+			t.Fatal("cross test against big.Int is failed A")
 		}
 		a, _ = new(fe).rand(rand.Reader)
-		big_a = toBig(a)
+		big_a = a.big()
 		doubleAssign(a)
-		out_1 = toBytes(a)
-		out_2 = padBytes(big_a.Add(big_a, big_a).Mod(big_a, modulus.big()).Bytes(), 48)
+		out_1 = a.bytes()
+		out_2 = padBytes(big_a.Add(big_a, big_a).Mod(big_a, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied B")
+			t.Fatal("cross test against big.Int is failed B")
 		}
 		a, _ = new(fe).rand(rand.Reader)
 		b, _ = new(fe).rand(rand.Reader)
-		big_a, big_b = toBig(a), toBig(b)
+		big_a, big_b = a.big(), b.big()
 		subAssign(a, b)
-		out_1 = toBytes(a)
-		out_2 = padBytes(big_a.Sub(big_a, big_b).Mod(big_a, modulus.big()).Bytes(), 48)
+		out_1 = a.bytes()
+		out_2 = padBytes(big_a.Sub(big_a, big_b).Mod(big_a, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied A")
+			t.Fatal("cross test against big.Int is failed A")
 		}
 	}
 }
@@ -309,9 +309,9 @@ func TestFpMultiplicationCrossAgainstBigInt(t *testing.T) {
 		big_c := new(big.Int)
 		mul(c, a, b)
 		out_1 := toBytes(c)
-		out_2 := padBytes(big_c.Mul(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), 48)
+		out_2 := padBytes(big_c.Mul(big_a, big_b).Mod(big_c, modulus.big()).Bytes(), fpByteSize)
 		if !bytes.Equal(out_1, out_2) {
-			t.Fatal("cross test against big.Int is not satisfied")
+			t.Fatal("cross test against big.Int is failed")
 		}
 	}
 }
@@ -420,6 +420,31 @@ func TestFpInversion(t *testing.T) {
 	}
 }
 
+func TestFpBatchInversion(t *testing.T) {
+	n := 20
+	for i := 0; i < n; i++ {
+		e0 := make([]fe, n)
+		e1 := make([]fe, n)
+		for j := 0; j < n; j++ {
+			if j != i {
+				e, err := new(fe).rand(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				e0[j].set(e)
+			}
+			inverse(&e1[j], &e0[j])
+		}
+
+		inverseBatch(e0)
+		for j := 0; j < n; j++ {
+			if !e0[j].equal(&e1[j]) {
+				t.Fatal("batch inversion failed")
+			}
+		}
+	}
+}
+
 func TestFpSquareRoot(t *testing.T) {
 	r := new(fe)
 	if sqrt(r, nonResidue1) {
@@ -430,17 +455,16 @@ func TestFpSquareRoot(t *testing.T) {
 		aa, rr, r := &fe{}, &fe{}, &fe{}
 		square(aa, a)
 		if !sqrt(r, aa) {
-			t.Fatal("bad sqrt 1")
+			t.Fatal("sqrt failed")
 		}
 		square(rr, r)
 		if !rr.equal(aa) {
-			t.Fatal("bad sqrt 2")
+			t.Fatal("sqrt failed")
 		}
 	}
 }
 
 func TestFpNonResidue(t *testing.T) {
-
 	if !isQuadraticNonResidue(nonResidue1) {
 		t.Fatal("element is quadratic non residue, 1")
 	}
@@ -453,7 +477,7 @@ func TestFpNonResidue(t *testing.T) {
 	for i := 0; i < fuz; i++ {
 		a, _ := new(fe).rand(rand.Reader)
 		square(a, a)
-		if isQuadraticNonResidue(new(fe).one()) {
+		if isQuadraticNonResidue(a) {
 			t.Fatal("element is not quadratic non residue")
 		}
 	}
@@ -479,7 +503,7 @@ func TestFp2Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !a.equal(b) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 	}
 }
@@ -783,6 +807,31 @@ func TestFp2Inversion(t *testing.T) {
 	}
 }
 
+func TestFp2BatchInversion(t *testing.T) {
+	field := newFp2()
+	n := 20
+	for i := 0; i < n; i++ {
+		e0 := make([]fe2, n)
+		e1 := make([]fe2, n)
+		for j := 0; j < n; j++ {
+			if j != i {
+				e, err := new(fe2).rand(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				e0[j].set(e)
+			}
+			field.inverse(&e1[j], &e0[j])
+		}
+		field.inverseBatch(e0)
+		for j := 0; j < n; j++ {
+			if !e0[j].equal(&e1[j]) {
+				t.Fatal("batch inversion failed")
+			}
+		}
+	}
+}
+
 func TestFp2SquareRoot(t *testing.T) {
 	field := newFp2()
 	for z := 0; z < fuz; z++ {
@@ -814,11 +863,11 @@ func TestFp2SquareRoot(t *testing.T) {
 		aa, rr, r := field.new(), field.new(), field.new()
 		field.square(aa, a)
 		if !field.sqrt(r, aa) {
-			t.Fatal("bad sqrt 1")
+			t.Fatal("sqrt failed")
 		}
 		field.square(rr, r)
 		if !rr.equal(aa) {
-			t.Fatal("bad sqrt 2")
+			t.Fatal("sqrt failed")
 		}
 	}
 }
@@ -837,7 +886,7 @@ func TestFp2NonResidue(t *testing.T) {
 	for i := 0; i < fuz; i++ {
 		a, _ := new(fe2).rand(rand.Reader)
 		field.squareAssign(a)
-		if field.isQuadraticNonResidue(new(fe2).one()) {
+		if field.isQuadraticNonResidue(a) {
 			t.Fatal("element is not quadratic non residue")
 		}
 	}
@@ -862,7 +911,7 @@ func TestFp6Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !a.equal(b) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization")
 		}
 	}
 }
@@ -1015,9 +1064,9 @@ func TestFp6SparseMultiplication(t *testing.T) {
 		u, _ = new(fe6).rand(rand.Reader)
 		b[2].zero()
 		fp6.mul(u, a, b)
-		fp6.mulBy01(a, a, &b[0], &b[1])
+		fp6.mul01(a, a, &b[0], &b[1])
 		if !a.equal(u) {
-			t.Fatal("bad mul by 01")
+			t.Fatal("mul by 01")
 		}
 	}
 	for j := 0; j < fuz; j++ {
@@ -1027,9 +1076,9 @@ func TestFp6SparseMultiplication(t *testing.T) {
 		b[2].zero()
 		b[0].zero()
 		fp6.mul(u, a, b)
-		fp6.mulBy1(a, a, &b[1])
+		fp6.mul1(a, a, &b[1])
 		if !a.equal(u) {
-			t.Fatal("bad mul by 1")
+			t.Fatal("mul by 1")
 		}
 	}
 }
@@ -1171,7 +1220,7 @@ func TestFp12Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !a.equal(b) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization")
 		}
 	}
 }
@@ -1331,9 +1380,9 @@ func TestFp12SparseMultiplication(t *testing.T) {
 		b[1][0].zero()
 		b[1][2].zero()
 		fp12.mul(u, a, b)
-		fp12.mulBy014Assign(a, &b[0][0], &b[0][1], &b[1][1])
+		fp12.mul014(a, &b[0][0], &b[0][1], &b[1][1])
 		if !a.equal(u) {
-			t.Fatal("bad mul by 01")
+			t.Fatal("mul by 01")
 		}
 	}
 }

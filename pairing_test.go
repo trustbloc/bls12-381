@@ -11,7 +11,7 @@ func TestPairingExpected(t *testing.T) {
 	GT := bls.GT()
 	expected, err := GT.FromBytes(
 		fromHex(
-			48,
+			fpByteSize,
 			"0x0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631",
 			"0x04c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef",
 			"0x03350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a2",
@@ -31,7 +31,7 @@ func TestPairingExpected(t *testing.T) {
 	}
 	r := bls.AddPair(G1.One(), G2.One()).Result()
 	if !r.Equal(expected) {
-		t.Fatal("bad pairing")
+		t.Fatal("expected pairing failed")
 	}
 	if !GT.IsValid(r) {
 		t.Fatal("element is not in correct subgroup")
@@ -89,7 +89,7 @@ func TestPairingNonDegeneracy(t *testing.T) {
 	{
 		expected, err := GT.FromBytes(
 			fromHex(
-				48,
+				fpByteSize,
 				"0x0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631",
 				"0x04c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef",
 				"0x03350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a2",
@@ -113,7 +113,7 @@ func TestPairingNonDegeneracy(t *testing.T) {
 		bls.AddPair(g1One, g2One)
 		e := bls.Result()
 		if !e.Equal(expected) {
-			t.Fatal("bad pairing")
+			t.Fatal("pairing failed")
 		}
 	}
 }
@@ -129,12 +129,12 @@ func TestPairingBilinearity(t *testing.T) {
 		G1, G2 := g1.One(), g2.One()
 		e0 := bls.AddPair(G1, G2).Result()
 		P1, P2 := g1.New(), g2.New()
-		g1.MulScalar(P1, G1, a)
-		g2.MulScalar(P2, G2, b)
+		g1.MulScalarBig(P1, G1, a)
+		g2.MulScalarBig(P2, G2, b)
 		e1 := bls.AddPair(P1, P2).Result()
 		gt.Exp(e0, e0, c)
 		if !e0.Equal(e1) {
-			t.Fatal("bad pairing, 1")
+			t.Fatal("pairing failed")
 		}
 	}
 	// e(a * G1, b * G2) = e((a * b) * G1, G2)
@@ -144,16 +144,16 @@ func TestPairingBilinearity(t *testing.T) {
 		c := new(big.Int).Mul(a, b)
 		// LHS
 		G1, G2 := g1.One(), g2.One()
-		g1.MulScalar(G1, G1, c)
+		g1.MulScalarBig(G1, G1, c)
 		bls.AddPair(G1, G2)
 		// RHS
 		P1, P2 := g1.One(), g2.One()
-		g1.MulScalar(P1, P1, a)
-		g2.MulScalar(P2, P2, b)
+		g1.MulScalarBig(P1, P1, a)
+		g2.MulScalarBig(P2, P2, b)
 		bls.AddPairInv(P1, P2)
 		// should be one
 		if !bls.Check() {
-			t.Fatal("bad pairing, 2")
+			t.Fatal("pairing failed")
 		}
 	}
 	// e(a * G1, b * G2) = e(G1, (a * b) * G2)
@@ -163,16 +163,16 @@ func TestPairingBilinearity(t *testing.T) {
 		c := new(big.Int).Mul(a, b)
 		// LHS
 		G1, G2 := g1.One(), g2.One()
-		g2.MulScalar(G2, G2, c)
+		g2.MulScalarBig(G2, G2, c)
 		bls.AddPair(G1, G2)
 		// RHS
 		H1, H2 := g1.One(), g2.One()
-		g1.MulScalar(H1, H1, a)
-		g2.MulScalar(H2, H2, b)
+		g1.MulScalarBig(H1, H1, a)
+		g2.MulScalarBig(H2, H2, b)
 		bls.AddPairInv(H1, H2)
 		// should be one
 		if !bls.Check() {
-			t.Fatal("bad pairing, 3")
+			t.Fatal("pairing failed")
 		}
 	}
 }
@@ -187,10 +187,10 @@ func TestPairingMulti(t *testing.T) {
 	// RHS
 	for i := 0; i < numOfPair; i++ {
 		// (ai1 * G1, ai2 * G2)
-		a1, a2 := randScalar(q), randScalar(q)
+		a1, a2 := randScalar(qBig), randScalar(qBig)
 		P1, P2 := g1.One(), g2.One()
-		g1.MulScalar(P1, P1, a1)
-		g2.MulScalar(P2, P2, a2)
+		g1.MulScalarBig(P1, P1, a1)
+		g2.MulScalarBig(P2, P2, a2)
 		bls.AddPair(P1, P2)
 		// accumulate targetExp
 		// t += (ai1 * ai2)
@@ -200,7 +200,7 @@ func TestPairingMulti(t *testing.T) {
 	// LHS
 	// e(t * G1, G2)
 	T1, T2 := g1.One(), g2.One()
-	g1.MulScalar(T1, T1, targetExp)
+	g1.MulScalarBig(T1, T1, targetExp)
 	bls.AddPairInv(T1, T2)
 	if !bls.Check() {
 		t.Fatal("fail multi pairing")
